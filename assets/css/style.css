@@ -1,0 +1,254 @@
+/**********************************************************
+ * BIMI Checker – Stylesheet
+ * Scope: Everything is namespaced under .bimichecker
+ * Notes: 600px content width, vertical cards, mobile-first
+ **********************************************************/
+
+/* ---------------------------
+   0) Design tokens & base
+----------------------------*/
+.bimichecker{
+  /* Colours */
+  --ok:   #198754;
+  --warn: #f0ad4e;
+  --err:  #dc3545;
+  --ink:  #111827;
+  --muted:#6b7280;
+  --bg:   #ffffff;
+  --card: #ffffff;
+  --line: #e5e7eb;
+  --brand:#0ea5e9; /* fallback brand */
+
+  /* Layout */
+  max-width: 600px;
+  margin: 0 auto;
+
+  /* Typography */
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+}
+
+.bimichecker *{ box-sizing: border-box; }
+
+/* ---------------------------
+   1) Form
+----------------------------*/
+.bimichecker-form{
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.bimichecker-field{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.bimichecker-field label{
+  font-weight: 600;
+  font-size: 14px;
+  color: #374151;
+}
+
+.bimichecker-field input{
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.bimichecker-btn{
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--brand, #0073aa);
+  color: #fff;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(14,165,233,0.25);
+  transition: transform .06s ease, box-shadow .12s ease;
+}
+
+.bimichecker-btn:hover{ transform: translateY(-1px); }
+.bimichecker-btn:active{ transform: translateY(0); }
+.bimichecker-btn.loading{ opacity:.7; cursor: progress; }
+
+.bimichecker-btn:focus-visible{
+  outline: 2px solid #111827;
+  outline-offset: 2px;
+}
+
+/* ---------------------------
+   2) Results layout
+----------------------------*/
+.bimichecker-results{ margin-top: 16px; }
+
+.bimichecker-summary{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.badge{
+  display: inline-block;
+  padding: 6px 10px;
+  background: #eef2ff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.alert.error{
+  padding: 10px 12px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 10px;
+}
+
+/* Cards always stack vertically for readability */
+.bimichecker-grid{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.bimichecker-card{
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+}
+
+.bimichecker-card h3{
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+/* ---------------------------
+   3) Status lists (BIMI/DMARC)
+----------------------------*/
+.status-list{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Item wraps gracefully; label left, detail right (when space allows) */
+.status-item{
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+
+.status-item .label{ font-weight: 600; }
+
+/* Keep details on the right on wide screens, allow wrapping as needed */
+.status-item .detail{
+  color: var(--muted);
+  margin-left: auto;
+  font-size: 12px;
+  text-align: right;
+  max-width: 60%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* State tints */
+.status-item.status-ok   { border-color: rgba(25,135,84,.35); }
+.status-item.status-warn { border-color: rgba(240,173,78,.45); }
+.status-item.status-error{ border-color: rgba(220,53,69,.45); }
+
+/* Status icons */
+.ic{
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+}
+.ic-ok{   background: var(--ok);   border-color: var(--ok); }
+.ic-warn{ background: var(--warn); border-color: var(--warn); }
+.ic-err{  background: var(--err);  border-color: var(--err); }
+
+/* Make URL details clearly clickable and wrap-friendly */
+.status-item .detail a{
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(0,0,0,.25);
+}
+.status-item .detail a:hover{ border-bottom-color: rgba(0,0,0,.55); }
+
+/* ---------------------------
+   4) Preview (mock email)
+----------------------------*/
+.mock-client{
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.mock-body.two-col{
+  display: grid;
+  grid-template-columns: 72px 1fr; /* avatar + content */
+  gap: 12px;
+  padding: 12px;
+}
+
+.mock-logo{
+  width: 64px;
+  height: 64px;
+  border-radius: 9999px;          /* circle */
+  background: #e5e7eb;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--line);
+}
+
+.mock-right{ display: flex; flex-direction: column; gap: 8px; }
+
+.mock-header{ display: flex; flex-direction: column; gap: 4px; }
+.mock-from{ font-size: 13px; color: #111827; font-weight: 600; }
+.mock-subject{ font-size: 13px; color: #374151; }
+
+/* ---------------------------
+   5) Mobile adjustments
+----------------------------*/
+@media (max-width: 520px){
+  /* Form stacks */
+  .bimichecker-form{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bimichecker-field{ min-width: unset; width: 100%; }
+  .bimichecker-btn{ width: 100%; }
+
+  /* Details align left under label when narrow */
+  .status-item .detail{
+    margin-left: 0;
+    text-align: left;
+    max-width: 100%;
+  }
+}
+
+/* ---------------------------
+   6) Motion preference
+----------------------------*/
+@media (prefers-reduced-motion: reduce){
+  .bimichecker-btn{ transition: none; }
+}
