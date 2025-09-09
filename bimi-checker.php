@@ -5,7 +5,7 @@
  * Version: 1.0.3
  * Author: Matthew Vernhout / BIMI Group
  * Author URI: https://github.com/EmailKarma
- * Plugin URI: https://github.com/pepipost/BIMI-official
+ * Plugin URI: https://github.com/authindicators/bimi-checker
  * License: GPLv2 or later
  */
 
@@ -213,3 +213,4 @@ function bimi_checker_check_ajax() {
         wp_send_json_error(['message' => 'Server error: ' . $e->getMessage()], 500);
     }
 }
+
