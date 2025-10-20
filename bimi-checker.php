@@ -1,216 +1,106 @@
 <?php
 /**
  * Plugin Name: BIMI Checker
- * Description: Validate BIMI and DMARC settings for a domain. Use shortcode [bimi_checker]. Follow us: https://bsky.app/profile/bimigroup.bsky.social.
- * Version: 1.0.3
+ * Description: Validate BIMI and DMARC settings for a domain. Use shortcode [bimi_checker]. Adds settings to choose DNS resolver(s).
+ * Version: 1.0.4
  * Author: Matthew Vernhout / BIMI Group
  * Author URI: https://github.com/EmailKarma
- * Plugin URI: https://github.com/authindicators/bimi-checker
- * License: GPLv2 or later
+ * Plugin URI: https://github.com/EmailKarma
  */
 
-if (!defined('ABSPATH')) { exit; }
+if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define('BIMICHECKER_VERSION', '1.0.3');
-define('BIMICHECKER_PATH', plugin_dir_path(__FILE__));
-define('BIMICHECKER_URL',  plugin_dir_url(__FILE__));
+define( 'BIMI_CHECKER_PATH', plugin_dir_path( __FILE__ ) );
+define( 'BIMI_CHECKER_URL',  plugin_dir_url( __FILE__ ) );
 
-require_once BIMICHECKER_PATH . 'includes/class-dns-utils.php';
-require_once BIMICHECKER_PATH . 'includes/class-bimi-parser.php';
-require_once BIMICHECKER_PATH . 'includes/class-dmarc-checker.php';
-require_once BIMICHECKER_PATH . 'includes/template-render.php';
-
-/**
- * Front-end assets + AJAX config.
- */
-add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('bimi-checker-css', BIMICHECKER_URL . 'assets/css/style.css', [], BIMICHECKER_VERSION);
-    wp_enqueue_script('bimi-checker-js', BIMICHECKER_URL . 'assets/js/app.js', ['jquery'], BIMICHECKER_VERSION, true);
-
-    wp_localize_script('bimi-checker-js', 'bimiChecker', [
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce'    => wp_create_nonce('bimi_checker_nonce'),
-    ]);
-});
-
-/**
- * Shortcode: [bimi_checker]
- */
-add_shortcode('bimi_checker', function () {
-    ob_start();
-    bimi_checker_render_form();
-    return ob_get_clean();
-});
-
-/**
- * AJAX endpoints.
- */
-add_action('wp_ajax_bimi_checker_check', 'bimi_checker_check_ajax');
-add_action('wp_ajax_nopriv_bimi_checker_check', 'bimi_checker_check_ajax');
-
-/**
- * AJAX handler: validates inputs, fetches DNS, evaluates BIMI/DMARC, returns JSON.
- */
-function bimi_checker_check_ajax() {
-    // Local helpers (safe across PHP versions)
-    $find_record = function(array $txts, $marker) {
-        foreach ($txts as $t) {
-            if (stripos($t, $marker) !== false) return $t;
-        }
-        return null;
-    };
-    $parse_tags = function($txt) {
-        $tags = [];
-        foreach (explode(';', (string)$txt) as $part) {
-            $part = trim($part);
-            if ($part === '' || strpos($part, '=') === false) continue;
-            [$k, $v] = array_map('trim', explode('=', $part, 2));
-            $tags[strtolower($k)] = $v;
-        }
-        return $tags;
-    };
-    $is_https = function($url) {
-        if (!is_string($url) || $url === '') return false;
-        $scheme = parse_url($url, PHP_URL_SCHEME);
-        return strtolower((string)$scheme) === 'https';
-    };
-
-    try {
-        check_ajax_referer('bimi_checker_nonce', 'nonce');
-
-        $domain   = isset($_POST['domain']) ? sanitize_text_field($_POST['domain']) : '';
-        $selector = isset($_POST['selector']) && $_POST['selector'] !== '' ? sanitize_text_field($_POST['selector']) : 'default';
-
-        if ($domain === '') {
-            wp_send_json_error(['message' => 'Please provide a domain.'], 400);
-        }
-
-        // ---- Get BIMI TXT strings (robust) ----
-        if (class_exists('DNS_Utils') && method_exists('DNS_Utils', 'get_bimi_txts')) {
-            $bimi_txts = DNS_Utils::get_bimi_txts($domain, $selector);
-        } else {
-            $fqdn      = strtolower($selector ?: 'default') . '._bimi.' . strtolower(trim($domain));
-            $recs      = @dns_get_record($fqdn, DNS_TXT);
-            $bimi_txts = [];
-            if (is_array($recs)) {
-                foreach ($recs as $r) {
-                    if (isset($r['txt'])) {
-                        $bimi_txts[] = is_array($r['txt']) ? implode('', $r['txt']) : (string)$r['txt'];
-                    } elseif (isset($r['entries']) && is_array($r['entries'])) {
-                        $bimi_txts[] = implode('', $r['entries']);
-                    }
-                }
-            }
-            $bimi_txts = array_map(function($s){ return trim($s, "\"' \t\r\n"); }, $bimi_txts);
-        }
-
-        // ---- Get DMARC TXT strings (robust) ----
-        if (class_exists('DNS_Utils') && method_exists('DNS_Utils', 'get_dmarc_txts')) {
-            $dmarc_txts = DNS_Utils::get_dmarc_txts($domain);
-        } else {
-            $host       = '_dmarc.' . strtolower(trim($domain));
-            $recs       = @dns_get_record($host, DNS_TXT);
-            $dmarc_txts = [];
-            if (is_array($recs)) {
-                foreach ($recs as $r) {
-                    if (isset($r['txt'])) {
-                        $dmarc_txts[] = is_array($r['txt']) ? implode('', $r['txt']) : (string)$r['txt'];
-                    } elseif (isset($r['entries']) && is_array($r['entries'])) {
-                        $dmarc_txts[] = implode('', $r['entries']);
-                    }
-                }
-            }
-            $dmarc_txts = array_map(function($s){ return trim($s, "\"' \t\r\n"); }, $dmarc_txts);
-        }
-
-        // ---- Parse BIMI ----
-        $bimi_raw  = $find_record((array)$bimi_txts, 'v=BIMI1');
-        $bimi_tags = $bimi_raw ? $parse_tags($bimi_raw) : [];
-        $bimi_out  = [];
-        $logo_url  = null;
-
-        if ($bimi_raw) {
-            $bimi_out[] = ['state'=>'ok', 'label'=>'BIMI record found', 'detail'=>$bimi_raw];
-
-            $a   = $bimi_tags['a']   ?? '';
-            $l   = $bimi_tags['l']   ?? '';
-            $avp = isset($bimi_tags['avp']) ? strtolower($bimi_tags['avp']) : '';
-
-            // a= (VMC URL)
-            if ($a !== '') {
-                $bimi_out[] = $is_https($a)
-                    ? ['state'=>'ok',    'label'=>'a= VMC URL', 'detail'=>$a]
-                    : ['state'=>'error', 'label'=>'a= VMC URL', 'detail'=>'a= must be HTTPS'];
-            } else {
-                $bimi_out[] = ['state'=>'warn', 'label'=>'a= VMC URL', 'detail'=>'Not present (self-asserted)'];
-            }
-
-            // l= (Logo URL, required)
-            if ($l !== '') {
-                if ($is_https($l)) {
-                    $bimi_out[] = ['state'=>'ok', 'label'=>'l= Logo URL', 'detail'=>$l];
-                    $logo_url = $l;
-                } else {
-                    $bimi_out[] = ['state'=>'error', 'label'=>'l= Logo URL', 'detail'=>'l= must be HTTPS'];
-                }
-            } else {
-                $bimi_out[] = ['state'=>'error', 'label'=>'l= Logo URL', 'detail'=>'Missing (required)'];
-            }
-
-            // avp= (optional: brand|personal). If missing, WARN.
-            if ($avp !== '') {
-                $bimi_out[] = in_array($avp, ['personal','brand'], true)
-                    ? ['state'=>'ok',    'label'=>'avp= Attribute', 'detail'=>$avp]
-                    : ['state'=>'error', 'label'=>'avp= Attribute', 'detail'=>'Must be personal or brand'];
-            } else {
-                $bimi_out[] = ['state'=>'warn', 'label'=>'avp= Attribute', 'detail'=>'Not set'];
-            }
-        } else {
-            $bimi_out[] = ['state'=>'error','label'=>'BIMI record', 'detail'=>'No BIMI record found'];
-        }
-
-        // ---- Parse DMARC ----
-        $dmarc_raw  = $find_record((array)$dmarc_txts, 'v=DMARC1');
-        $dmarc_tags = $dmarc_raw ? $parse_tags($dmarc_raw) : [];
-        $dmarc_out  = [];
-
-        if ($dmarc_raw) {
-            $dmarc_out[] = ['state'=>'ok', 'label'=>'DMARC record found', 'detail'=>$dmarc_raw];
-
-            $p   = isset($dmarc_tags['p']) ? strtolower($dmarc_tags['p']) : '';
-            $sp  = isset($dmarc_tags['sp']) ? strtolower($dmarc_tags['sp']) : $p;
-            $pct = isset($dmarc_tags['pct']) ? (int)$dmarc_tags['pct'] : 100;
-            $rua = $dmarc_tags['rua'] ?? '';
-
-            $dmarc_out[] = in_array($p, ['quarantine','reject'], true)
-                ? ['state'=>'ok',    'label'=>'p= (domain policy)',    'detail'=>$p]
-                : ['state'=>'error', 'label'=>'p= (domain policy)',    'detail'=>'Must be quarantine or reject'];
-
-            $dmarc_out[] = in_array($sp, ['quarantine','reject'], true)
-                ? ['state'=>'ok',    'label'=>'sp= (subdomain policy)','detail'=>$sp]
-                : ['state'=>'error', 'label'=>'sp= (subdomain policy)','detail'=>'Must be quarantine or reject (or inherit p=)'];
-
-            $dmarc_out[] = ($pct === 100)
-                ? ['state'=>'ok',    'label'=>'pct=', 'detail'=>'100']
-                : ['state'=>'warn',  'label'=>'pct=', 'detail'=> (string)$pct . ' (recommend 100 or omit)'];
-
-            $dmarc_out[] = $rua
-                ? ['state'=>'ok',    'label'=>'rua=', 'detail'=>$rua]
-                : ['state'=>'warn',  'label'=>'rua=', 'detail'=>'Not set'];
-        } else {
-            $dmarc_out[] = ['state'=>'error','label'=>'DMARC record', 'detail'=>'No DMARC record found'];
-        }
-
-        wp_send_json_success([
-            'bimi'  => $bimi_out,
-            'dmarc' => $dmarc_out,
-            'logo'  => $logo_url,
-        ]);
-    }
-    catch (Exception $e) {
-        wp_send_json_error(['message' => 'Server error: ' . $e->getMessage()], 500);
-    } catch (Error $e) {
-        wp_send_json_error(['message' => 'Server error: ' . $e->getMessage()], 500);
-    }
+// Guard against missing includes (no output!)
+$includes = [
+  BIMI_CHECKER_PATH . 'includes/class-bimi-dns-resolver.php',
+  BIMI_CHECKER_PATH . 'includes/admin-settings.php',
+  BIMI_CHECKER_PATH . 'includes/class-bimi-validator.php',
+];
+$missing = array_values(array_filter($includes, static function($p){ return ! file_exists($p); }));
+if ( $missing ) {
+  add_action('admin_notices', static function() use ($missing) {
+    echo '<div class="notice notice-error"><p><strong>BIMI Checker:</strong> Missing include(s):<br><code>'
+      . esc_html( implode(', ', $missing) )
+      . '</code></p></div>';
+  });
+  return;
 }
 
+require_once $includes[0];
+require_once $includes[1];
+require_once $includes[2];
+
+register_activation_hook( __FILE__, static function() {
+  $defaults = [
+    'bimi_checker_dns_mode'    => 'system',
+    'bimi_checker_dns_servers' => '',
+    'bimi_checker_dns_timeout' => 3,
+    'bimi_checker_dns_retries' => 1,
+  ];
+  foreach ( $defaults as $k => $v ) {
+    if ( get_option( $k, null ) === null ) {
+      update_option( $k, $v );
+    }
+  }
+});
+
+// Front-end assets (restored v1.0.3 look)
+add_action( 'wp_enqueue_scripts', static function() {
+  wp_register_style( 'bimi-checker', BIMI_CHECKER_URL . 'assets/css/style.css', [], '1.0.4' );
+  wp_register_script( 'bimi-checker', BIMI_CHECKER_URL . 'assets/js/bimi.js', [ 'jquery' ], '1.0.4', true );
+
+  // Localize for AJAX ping/error trapping
+  wp_localize_script( 'bimi-checker', 'BIMIChecker', [
+    'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+    'nonce'   => wp_create_nonce( 'bimi_checker_nonce' ),
+  ] );
+});
+
+// AJAX ping endpoint (helps identify -1 / 403 issues)
+add_action( 'wp_ajax_bimi_checker_ping', 'bimi_checker_ping' );
+add_action( 'wp_ajax_nopriv_bimi_checker_ping', 'bimi_checker_ping' );
+function bimi_checker_ping() {
+  if ( ! isset($_POST['_ajax_nonce']) || ! wp_verify_nonce( $_POST['_ajax_nonce'], 'bimi_checker_nonce' ) ) {
+    wp_send_json_error( [ 'message' => 'Invalid or missing nonce. Check caching/security rules blocking admin-ajax.' ], 403 );
+  }
+  wp_send_json_success( [ 'message' => 'OK' ] );
+}
+
+// Template helper
+function bimi_checker_render_template( $template_vars = [] ) {
+  extract( $template_vars, EXTR_SKIP );
+  $tpl = BIMI_CHECKER_PATH . 'templates/form-and-results.php';
+  if ( file_exists( $tpl ) ) {
+    include $tpl;
+  }
+}
+
+// Shortcode
+add_shortcode( 'bimi_checker', static function( $atts ) {
+  $atts      = shortcode_atts( [ 'domain' => '', 'selector' => '' ], $atts );
+  $domain    = isset($_GET['bimi_domain'])    ? sanitize_text_field($_GET['bimi_domain'])    : $atts['domain'];
+  $selector  = isset($_GET['bimi_selector'])  ? sanitize_text_field($_GET['bimi_selector'])  : $atts['selector'];
+  $selector  = $selector !== '' ? $selector : 'default';
+
+  wp_enqueue_style( 'bimi-checker' );
+  wp_enqueue_script( 'bimi-checker' );
+
+  $resolver  = BIMI_DNS_Resolver::make_from_settings();
+  $validator = new BIMI_Validator( $resolver );
+
+  $result = null;
+  if ( $domain ) {
+    $result = $validator->check_domain_with_dmarc( $domain, $selector );
+  }
+
+  ob_start();
+  bimi_checker_render_template([
+    'domain'   => $domain,
+    'selector' => $selector,
+    'result'   => $result,
+  ]);
+  return ob_get_clean();
+});

@@ -1,0 +1,25 @@
+<?php
+// === FILE: assets/css/bimi.css ===
+?>
+.bimi-wrap{max-width:860px;margin:1.5rem auto;padding:0 1rem}
+.bimi-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:1rem 1.25rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.bimi-title{margin:.25rem 0 1rem;font-size:1.5rem}
+.bimi-subtitle{margin:0 0 .5rem;font-size:1.25rem}
+.bimi-form{display:block;margin:0}
+.bimi-label{display:block;font-weight:600;margin-bottom:.25rem}
+.bimi-inputrow{display:flex;gap:.5rem}
+.bimi-inputrow input{flex:1 1 auto;padding:.5rem .75rem;border:1px solid #cbd5e1;border-radius:8px}
+.bimi-btn{padding:.5rem .9rem;border:1px solid #334155;background:#334155;color:#fff;border-radius:8px;cursor:pointer}
+.bimi-help{color:#6b7280;font-size:.9rem;margin:.5rem 0 0}
+.bimi-results{margin-top:1rem}
+.bimi-alert{padding:.75rem 1rem;border-radius:8px;border:1px solid #e5e7eb;margin:.5rem 0}
+.bimi-alert--error{background:#FEF2F2;border-color:#FECACA}
+.bimi-alert--warn{background:#FFFBEB;border-color:#FDE68A}
+.bimi-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.5rem}
+.bimi-kv{margin:0 0 .75rem}
+.bimi-kv span{display:block;font-weight:600;color:#374151;margin-bottom:.25rem}
+.bimi-list{margin:.25rem 0 0;padding-left:1.25rem}
+.bimi-parsed{padding:.5rem .75rem;border:1px dashed #e5e7eb;border-radius:8px;margin-bottom:.5rem}
+.bimi-adv{margin-top:.75rem}
+.bimi-note{color:#6b7280;font-size:.85rem}
+@media (max-width: 720px){.bimi-grid{grid-template-columns:1fr}}
