@@ -63,6 +63,11 @@ Yes. The layout is responsive and adapts to smaller screens.
 
 == Changelog ==
 
+= 1.0.4 =
+* Added Wordpress settings page
+* Added support for external DNS resolvers
+* Added support to trap Ajax Errors with better descriptions
+
 = 1.0.3 =
 * Added clickable links for `a=` and `l=` record values  
 * Cleaned preview output (domain used as From, Subject updated)  
