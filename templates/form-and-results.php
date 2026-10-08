@@ -31,21 +31,39 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
             $first = $result['bimi_first_kv'] ?? [];
             $raw_bimi = '';
             if ( ! empty($result['txt_raw']) ) {
-            // show the first TXT record exactly as published
-            $raw_bimi = is_array($result['txt_raw']) ? (string) reset($result['txt_raw']) : (string) $result['txt_raw'];
+              // txt_raw now contains only records that passed BIMI version filtering.
+              $raw_bimi = is_array($result['txt_raw']) ? (string) reset($result['txt_raw']) : (string) $result['txt_raw'];
             }
-            // AVP colour logic: brand|personal => ok, '' => warn, else => error
+
+            // AVP colour logic: brand|personal => ok, '' => warn, else => error.
             $avp_val_raw = isset($first['avp']) ? trim(strtolower((string)$first['avp'])) : '';
             if ($avp_val_raw === 'brand' || $avp_val_raw === 'personal') {
-            $avp_class = 'status-ok';    // green
-            $avp_icon  = 'ic ic-ok';
+              $avp_class = 'status-ok';
+              $avp_icon  = 'ic ic-ok';
             } elseif ($avp_val_raw === '') {
-            $avp_class = 'status-warn';  // amber
-            $avp_icon  = 'ic ic-warn';
+              $avp_class = 'status-warn';
+              $avp_icon  = 'ic ic-warn';
             } else {
-            $avp_class = 'status-error'; // red
-            $avp_icon  = 'ic ic-err';
+              $avp_class = 'status-error';
+              $avp_icon  = 'ic ic-err';
             }
+
+            $uri_validation = $result['uri_validation'] ?? [];
+            $a_validation   = $uri_validation['a'] ?? ['status' => 'warn', 'message' => ''];
+            $l_validation   = $uri_validation['l'] ?? ['status' => 'warn', 'message' => ''];
+
+            $status_class = static function($status) {
+              if ($status === 'ok') { return 'status-ok'; }
+              if ($status === 'error') { return 'status-error'; }
+              return 'status-warn';
+            };
+            $status_icon = static function($status) {
+              if ($status === 'ok') { return 'ic ic-ok'; }
+              if ($status === 'error') { return 'ic ic-err'; }
+              return 'ic ic-warn';
+            };
+
+            $lps = $result['lps'] ?? ['present' => false, 'value' => null, 'valid' => null, 'prefixes' => [], 'message' => ''];
             ?>
             <div class="bimichecker-card">
             <h3>BIMI</h3>
@@ -62,8 +80,16 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
                 </span>
                 </li>
 
-                <li class="status-item <?php echo !empty($first['a']) ? 'status-ok' : 'status-warn'; ?>">
-                <span class="<?php echo !empty($first['a']) ? 'ic ic-ok' : 'ic ic-warn'; ?>" aria-hidden="true"></span>
+                <?php if ( ! empty($result['fallback_used']) ) : ?>
+                <li class="status-item status-ok">
+                <span class="ic ic-ok" aria-hidden="true"></span>
+                <span class="label">Organizational Domain fallback</span>
+                <span class="detail"><code><?php echo esc_html( $result['label'] ?? '' ); ?></code></span>
+                </li>
+                <?php endif; ?>
+
+                <li class="status-item <?php echo esc_attr( $status_class($a_validation['status'] ?? 'warn') ); ?>">
+                <span class="<?php echo esc_attr( $status_icon($a_validation['status'] ?? 'warn') ); ?>" aria-hidden="true"></span>
                 <span class="label">a= (VMC URL)</span>
                 <span class="detail">
                     <?php if ( ! empty( $first['a'] ) ) : ?>
@@ -71,11 +97,12 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
                     <?php else : ?>
                     <code>—</code>
                     <?php endif; ?>
+                    <?php if ( ! empty($a_validation['message']) ) : ?><br><?php echo esc_html( $a_validation['message'] ); ?><?php endif; ?>
                 </span>
                 </li>
 
-                <li class="status-item <?php echo !empty($first['l']) ? 'status-ok' : 'status-warn'; ?>">
-                <span class="<?php echo !empty($first['l']) ? 'ic ic-ok' : 'ic ic-warn'; ?>" aria-hidden="true"></span>
+                <li class="status-item <?php echo esc_attr( $status_class($l_validation['status'] ?? 'warn') ); ?>">
+                <span class="<?php echo esc_attr( $status_icon($l_validation['status'] ?? 'warn') ); ?>" aria-hidden="true"></span>
                 <span class="label">l= (Logo URL)</span>
                 <span class="detail">
                     <?php if ( ! empty( $first['l'] ) ) : ?>
@@ -83,6 +110,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
                     <?php else : ?>
                     <code>—</code>
                     <?php endif; ?>
+                    <?php if ( ! empty($l_validation['message']) ) : ?><br><?php echo esc_html( $l_validation['message'] ); ?><?php endif; ?>
                 </span>
                 </li>
 
@@ -93,6 +121,25 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
                     <code><?php echo ($avp_val_raw !== '') ? esc_html($avp_val_raw) : '—'; ?></code>
                 </span>
                 </li>
+                
+                <li class="status-item <?php echo !empty($lps['present']) ? 'status-ok' : 'status-warn'; ?>">
+                <span class="<?php echo !empty($lps['present']) ? 'ic ic-ok' : 'ic ic-warn'; ?>" aria-hidden="true"></span>
+                <span class="label">lps=</span>
+                <span class="detail">
+                    <code><?php echo !empty($lps['present']) ? esc_html($lps['value']) : '—'; ?></code>
+                </span>
+                </li>
+
+                <?php if ( ! empty($lps['present']) ) : ?>
+                <li class="status-item <?php echo !empty($lps['valid']) ? 'status-ok' : 'status-error'; ?>">
+                <span class="<?php echo !empty($lps['valid']) ? 'ic ic-ok' : 'ic ic-err'; ?>" aria-hidden="true"></span>
+                <span class="label">lps= (Local-part Selector)</span>
+                <span class="detail">
+                    <code><?php echo ($lps['value'] === '') ? '(empty)' : esc_html( $lps['value'] ); ?></code>
+                    <?php if ( ! empty($lps['message']) ) : ?><br><?php echo esc_html( $lps['message'] ); ?><?php endif; ?>
+                </span>
+                </li>
+                <?php endif; ?>
             </ul>
             </div>
 

@@ -2,10 +2,10 @@
 /**
  * Plugin Name: BIMI Checker
  * Description: Validate BIMI and DMARC settings for a domain. Use shortcode [bimi_checker]. Adds settings to choose DNS resolver(s).
- * Version: 1.0.4
+ * Version: 1.1.0
  * Author: Matthew Vernhout / BIMI Group
  * Author URI: https://github.com/EmailKarma
- * Plugin URI: https://github.com/EmailKarma
+ * Plugin URI: https://github.com/authindicators/bimi-checker
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -47,10 +47,10 @@ register_activation_hook( __FILE__, static function() {
   }
 });
 
-// Front-end assets (restored v1.0.3 look)
+// Front-end assets
 add_action( 'wp_enqueue_scripts', static function() {
-  wp_register_style( 'bimi-checker', BIMI_CHECKER_URL . 'assets/css/style.css', [], '1.0.4' );
-  wp_register_script( 'bimi-checker', BIMI_CHECKER_URL . 'assets/js/bimi.js', [ 'jquery' ], '1.0.4', true );
+  wp_register_style( 'bimi-checker', BIMI_CHECKER_URL . 'assets/css/style.css', [], '1.1.0' );
+  wp_register_script( 'bimi-checker', BIMI_CHECKER_URL . 'assets/js/bimi.js', [ 'jquery' ], '1.1.0', true );
 
   // Localize for AJAX ping/error trapping
   wp_localize_script( 'bimi-checker', 'BIMIChecker', [
